@@ -6,7 +6,8 @@ const mongoose = require("mongoose");
 const app = express();
 
 const authRouter = require("./routes/authRouter");
-const postRouter = require("./routes/postRouter")
+const postRouter = require("./routes/postRouter");
+const productRouter = require("./routes/productRouter");
 
 app.use(express.json());
 app.use(cors());
@@ -23,6 +24,7 @@ mongoose.connect(process.env.URI).then(() => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/post', postRouter);
+app.use('/api/product', productRouter);
 
 app.get("/", (req, res) => {
     res.json({
