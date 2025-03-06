@@ -69,4 +69,17 @@ exports.createPostSchema = joi.object({
         .max(600)
         .required(),
     userId: joi.string().required()
+});
+
+exports.createProductSchema = joi.object({
+    name: joi.string()
+        .min(6)
+        .max(60)
+        .required(),
+    category: joi.string()
+        .min(3)
+        .max(50)
+        .required(),
+    quantity: joi.number(),
+    price: joi.number()
 })
