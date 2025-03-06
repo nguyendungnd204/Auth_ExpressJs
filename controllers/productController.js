@@ -53,4 +53,52 @@ exports.createProduct = async (req, res) => {
     } catch (error) {
         console.log(error);
     }
+};
+
+exports.updateProduct = async (req, res) => {
+    const {name, category, quantity, price} = req.body;
+    const {_id} = req.query;
+    try {
+        const {error} = createProductSchema.validate({
+            name,
+            category,
+            quantity,
+            price,
+        });
+        if(error) {
+            return res  
+                .status(400).json({success: false, message: error.details[0].message});
+        }
+        const result = await Product.findOne({_id});
+        if(!result) {
+            return res
+                .status(404).json({success: false, message: "Not found product"})
+        }
+        result.name = name;
+        result.category = category;
+        result.quantity = quantity;
+        result.price = price;
+        
+        const resultUpdated = await result.save();
+        res.status(200).json({success: true, message:"Updated", data: resultUpdated});
+        
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+exports.deleteProduct = async (req, res) => {
+    const {_id} = req.query;
+    
+    try {
+        const result = await Product.findOne({_id});
+        if(!result){
+            return res
+                .status(404).json({success: false, message: "Cannot found"});
+        }
+        await Product.deleteOne({_id});
+        res.status(204).json({success: true, message: "delete complete!"});
+    } catch (error) {
+        console.log(error);
+    }
 }
