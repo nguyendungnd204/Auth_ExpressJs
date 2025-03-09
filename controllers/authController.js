@@ -3,84 +3,78 @@ const { signupSchema, signinSchema, acceptCodeSchema, changePasswordSchema, acce
 const User = require("../models/userModel");
 const {doHash, doHashValidation, hmacProcess} = require("../utils/hashing");
 const jwt = require("jsonwebtoken");
+const authService = require("../services/authService");
+const logger = require("../utils/logger");
+const { AppError } = require("../middlewares/errorHandler");
 
+exports.signup = async (req, res, next) => {
+    try {
+        const {email, password} = req.body;
+        const {error} = signupSchema.validate({email, password});
 
-exports.signup = async (req, res) => {
-    const {email, password} = req.body;
-    try{
-       const {error, value} = signupSchema.validate({email, password});
+        if(error) {
+            throw new AppError(error.details[0].message, 401);
+        }
 
-       if(error){
-        return res.status(401).json({success:false, message: error.details[0].message})
-       }
-       const existingUser = await User.findOne({email})
+        const result = await authService.signup(email, password);
+        logger.info(`New user registered: ${email}`);
 
-       if(existingUser){
-        return res.status(401).json({success:false, message:"User already exists!"})
-       }
-
-       const hashedPassword = await doHash(password, 12);
-
-       const newUser = new User({
-            email,
-            password: hashedPassword,
-       });
-       const result = await newUser.save();
-       result.password = undefined;
-       res.status(201).json({success: true, message:"Your account has been created successfully!", result})
+        res.status(201).json({
+            success: true, 
+            message: "Your account has been created successfully!", 
+            result
+        });
     } catch (error) {
-        console.log(error);
+        next(error);
     }
 };
 
-exports.signin = async (req, res) => {
-    const {email, password} = req.body;
+exports.signin = async (req, res, next) => {
     try {
+        const {email, password} = req.body;
         const {error} = signinSchema.validate({email, password});
-        if(error){
-            return res
-                .status(401)
-                .json({success: false, message: error.details[0].message});
-        }
-        const existingUser = await User.findOne({email}).select("+password");
-        if(!existingUser){
-            return res
-                .status(401)
-                .json({success: false, message:"User does not exists!"});
-        }
-        const result = await doHashValidation(password, existingUser.password);
-        if(!result){
-            return res
-                .status(401)
-                .json({success: false, message:"Invalid credentials!"});
-        }
-        const token = jwt.sign({
-            userId: existingUser._id,
-            email: existingUser.email,
-            verified: existingUser.verified,
-        }, process.env.TOKEN_SECRET, {expiresIn: '8h',});
-
-        res
-			.cookie('Authorization', 'Bearer ' + token, {
-				expires: new Date(Date.now() + 8 * 3600000),
-				httpOnly: process.env.NODE_ENV === 'production',
-				secure: process.env.NODE_ENV === 'production',
-			})
-			.json({
-				success: true,
-				token,
-				message: 'logged in successfully',
-			});
         
+        if(error) {
+            throw new AppError(error.details[0].message, 401);
+        }
+
+        const user = await authService.signin(email, password);
+        
+        const token = jwt.sign({
+            userId: user._id,
+            email: user.email,
+            verified: user.verified,
+        }, process.env.TOKEN_SECRET, {
+            expiresIn: '8h',
+        });
+
+        logger.info(`User logged in: ${email}`);
+
+        res.cookie('Authorization', 'Bearer ' + token, {
+            expires: new Date(Date.now() + 8 * 3600000),
+            httpOnly: process.env.NODE_ENV === 'production',
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+        }).json({
+            success: true,
+            token,
+            message: 'Logged in successfully'
+        });
     } catch (error) {
-        console.log(error);
+        next(error);
     }
 };
 
 exports.logout = async (req, res) => {
-    res.clearCookie('Authorization')
-        .status(200)
-        .json({success: true, message: 'logged out successfully'});
+    logger.info(`User logged out: ${req.user?.email}`);
+    res.clearCookie('Authorization', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict'
+    }).status(200).json({
+        success: true, 
+        message: 'Logged out successfully'
+    });
 };
 
 exports.sendVerificationCode = async (req, res) => {

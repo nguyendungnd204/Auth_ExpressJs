@@ -80,6 +80,6 @@ exports.createProductSchema = joi.object({
         .min(3)
         .max(50)
         .required(),
-    quantity: joi.number(),
-    price: joi.number()
+    quantity: joi.number().positive().required(), // Ensure quantity is a positive number
+    price: joi.number().positive().required() // Ensure price is a positive number
 })

@@ -1,116 +1,104 @@
 const { createPostSchema } = require('../middlewares/validator');
-const Post = require('../models/postModel');
+const postService = require('../services/postService');
+const { AppError } = require('../middlewares/errorHandler');
 
-exports.getPosts = async (req, res) => {
-    const {page} = req.query;
-    const postsPerPage = 10;
-
+exports.getPosts = async (req, res, next) => {
     try {
-        let pageNum = 0;
-        if(page <=1){
-            pageNum = 0;
-        }else{
-            pageNum = page - 1;
-        }
-        const result = await Post.find().sort({createdAt: -1}).skip(pageNum * postsPerPage).limit(postsPerPage).populate({
-            path: 'userId',
-            select: 'email',
+        const { page } = req.query;
+        const posts = await postService.getAllPosts(page);
+        
+        res.status(200).json({
+            success: true, 
+            message: 'All posts', 
+            data: posts
         });
-        res.status(200).json({success: true, message: 'All posts', data: result});
     } catch (error) {
-        console.log(error);
+        next(error);
     }
 };
 
-exports.singlePost = async (req, res) => {
-    const {_id} = req.query;
+exports.singlePost = async (req, res, next) => {
     try {
-        const result = await Post.findOne({ _id }).populate({path:'userId', select:'email'});
-        if(!result){
-            return res.status(404).json({success: false, message: 'Post unvailable'})
-        }
-        res.status(200).json({success: true, message: 'single Post', data: result});
+        const { _id } = req.query;
+        const post = await postService.getPostById(_id);
+        
+        res.status(200).json({
+            success: true, 
+            message: 'Single Post', 
+            data: post
+        });
     } catch (error) {
-        console.log(error);
+        next(error);
     }
 };
 
-exports.createPost = async (req, res) => {
-    const {title, description} = req.body;
-    const {userId} = req.user;
-
+exports.createPost = async (req, res, next) => {
     try {
-        const {error} = createPostSchema.validate({
+        const { title, description } = req.body;
+        const { userId } = req.user;
+
+        const { error } = createPostSchema.validate({
             title,
             description,
             userId,
         });
-        if(error){
-            return res
-                .status(401)
-                .json({success:false, message: error.details[0].message});
+
+        if (error) {
+            throw new AppError(error.details[0].message, 401);
         }
-        const result = await Post.create({
-            title, description, userId,
+
+        const post = await postService.createPost(title, description, userId);
+        
+        res.status(201).json({
+            success: true, 
+            message: 'Created', 
+            data: post
         });
-        res.status(201).json({success: true, message: 'Created', data: result});
     } catch (error) {
-        
+        next(error);
     }
 };
 
-exports.updatePost = async (req, res) => {
-    const { _id } = req.query;
-    const { title, description } = req.body;
-    const { userId } = req.user;
-
+exports.updatePost = async (req, res, next) => {
     try {
-        const {error} = createPostSchema.validate({title, description, userId});
+        const { _id } = req.query;
+        const { title, description } = req.body;
+        const { userId } = req.user;
 
-        if(error){
-            return res
-                .status(401)
-                .json({success: false, message: error.details[0].message});
-        }
-        const result = await Post.findOne({ _id });
-        if(!result){
-            return res 
-                .status(404)
-                .json({success: false, message: 'Post unvailable'});
-        }
-        if(result.userId.toString() != userId) {
-            return res.status(403).json({success: false, message: 'Unauthorized'});
-        }
-        result.title = title;
-        result.description = description;
+        const { error } = createPostSchema.validate({
+            title, 
+            description, 
+            userId
+        });
 
-        const resultUpdated = await result.save();
-        res.status(200).json({success: true, message:'Updated', data: resultUpdated});
+        if (error) {
+            throw new AppError(error.details[0].message, 401);
+        }
+
+        const updatedPost = await postService.updatePost(_id, title, description, userId);
+        
+        res.status(200).json({
+            success: true, 
+            message: 'Updated', 
+            data: updatedPost
+        });
     } catch (error) {
-        console.log(error);
+        next(error);
     }
 };
 
-exports.deletePost = async (req, res) => {
-    const {_id} = req.query;
-    const {userId} = req.user;
-
+exports.deletePost = async (req, res, next) => {
     try {
-        const result = await Post.findOne({_id});
+        const { _id } = req.query;
+        const { userId } = req.user;
+
+        await postService.deletePost(_id, userId);
         
-        if(!result){
-            return res  
-                .status(404)
-                .json({success: false, message: "Post not found"});
-        }
-        if(result.userId.toString() != userId){
-            return res  
-                .status(403)
-                .json({success: false, message: "Unauthorized"});
-        }
-        await Post.deleteOne({_id});
-        res.status(200).json({success: true, message: "Post Deleted"});
+        res.status(200).json({
+            success: true, 
+            message: 'Post Deleted'
+        });
     } catch (error) {
-        console.log(error);
+        next(error);
     }
-}
+};
